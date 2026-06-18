@@ -1,5 +1,7 @@
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
+import fs from 'fs-extra';
 import { initStorage } from './utils/storage';
 import configRouter from './routes/config';
 import syncRouter from './routes/sync';
@@ -9,6 +11,7 @@ import { syncEngine } from './modules/SyncEngine';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const CLIENT_DIST_DIR = path.join(__dirname, '..', 'client-dist');
 
 app.use(cors());
 app.use(express.json());
@@ -21,6 +24,17 @@ app.use('/api/records', recordsRouter);
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: Date.now() });
 });
+
+if (fs.pathExistsSync(CLIENT_DIST_DIR)) {
+  app.use(express.static(CLIENT_DIST_DIR));
+  
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) {
+      return next();
+    }
+    res.sendFile(path.join(CLIENT_DIST_DIR, 'index.html'));
+  });
+}
 
 async function startServer() {
   try {

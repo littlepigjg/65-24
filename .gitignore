@@ -2,5 +2,14 @@ node_modules/
 __pycache__/
 *.pyc
 .env
+.env.local
+.env.*.local
 empty.bat 
-empty.bat 
+data/
+server/dist/
+client/dist/
+*.log
+.DS_Store
+.vscode/
+.idea/
+

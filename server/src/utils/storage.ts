@@ -2,25 +2,53 @@ import fs from 'fs-extra';
 import path from 'path';
 import { SyncConfig, SyncState, SyncRecord, ConflictFile } from '../types';
 
-const DATA_DIR = path.join(process.cwd(), 'data');
+const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), 'data');
 const CONFIG_FILE = path.join(DATA_DIR, 'sync-config.json');
 const STATE_FILE = path.join(DATA_DIR, 'sync-state.json');
 const RECORDS_FILE = path.join(DATA_DIR, 'sync-records.json');
 const CONFLICTS_FILE = path.join(DATA_DIR, 'conflicts.json');
 
+function getDefaultConfig(): SyncConfig {
+  const sourceDir = process.env.SOURCE_DIR || path.join(process.cwd(), 'sync-source');
+  const targetDir = process.env.TARGET_DIR || path.join(process.cwd(), 'sync-target');
+  
+  return {
+    sourceDir,
+    targetDir,
+    syncInterval: parseInt(process.env.SYNC_INTERVAL || '5000', 10),
+    ignoredPatterns: ['node_modules', '.git', '*.tmp', '*.log'],
+    autoResolve: process.env.AUTO_RESOLVE === 'true',
+    conflictStrategy: (process.env.CONFLICT_STRATEGY as 'manual' | 'source' | 'target') || 'manual'
+  };
+}
+
 export async function initStorage(): Promise<void> {
   await fs.ensureDir(DATA_DIR);
   
+  const defaultConfig = getDefaultConfig();
+  
   if (!await fs.pathExists(CONFIG_FILE)) {
-    const defaultConfig: SyncConfig = {
-      sourceDir: path.join(process.cwd(), 'sync-source'),
-      targetDir: path.join(process.cwd(), 'sync-target'),
-      syncInterval: 5000,
-      ignoredPatterns: ['node_modules', '.git', '*.tmp', '*.log'],
-      autoResolve: false,
-      conflictStrategy: 'manual'
-    };
     await fs.writeJson(CONFIG_FILE, defaultConfig, { spaces: 2 });
+  } else {
+    const existingConfig = await getConfig();
+    let updated = false;
+    
+    if (process.env.SOURCE_DIR && existingConfig.sourceDir !== defaultConfig.sourceDir) {
+      existingConfig.sourceDir = defaultConfig.sourceDir;
+      updated = true;
+    }
+    if (process.env.TARGET_DIR && existingConfig.targetDir !== defaultConfig.targetDir) {
+      existingConfig.targetDir = defaultConfig.targetDir;
+      updated = true;
+    }
+    if (process.env.SYNC_INTERVAL && existingConfig.syncInterval !== defaultConfig.syncInterval) {
+      existingConfig.syncInterval = defaultConfig.syncInterval;
+      updated = true;
+    }
+    
+    if (updated) {
+      await saveConfig(existingConfig);
+    }
   }
 
   if (!await fs.pathExists(STATE_FILE)) {
